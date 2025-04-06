@@ -4,6 +4,8 @@ from esphome.components import sensor, binary_sensor
 from esphome.const import (
     CONF_ID,
     CONF_PM_2_5,
+    STATE_CLASS_MEASUREMENT,
+    DEVICE_CLASS_PM25
 )
 
 pm1003ph_ns = cg.esphome_ns.namespace("pm1003ph")
@@ -19,6 +21,8 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement="µg/m³",
             icon="mdi:blur",
             accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,  
+            device_class=DEVICE_CLASS_PM25,
         ),
     }
 ).extend(cv.polling_component_schema("30s"))
