@@ -19,7 +19,9 @@ Datasheet: https://agelectronica.lat/pdfs/textos/P/PM1003PH.PDF
 - Publishes PM2.5 data to Home Assistant.
 
 ## Installation
-To use this component, copy the `pm1003ph` directory into your ESPHome project's `custom_components` folder.
+To use this component, either copy the `pm1003ph` directory into your ESPHome
+project's `custom_components` folder or use the following external_components
+configuration:
 
 ## Configuration Example
 ```yaml
