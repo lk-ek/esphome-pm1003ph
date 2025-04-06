@@ -15,19 +15,23 @@ PM1003PHComponent = pm1003ph_ns.class_("PM1003PHComponent", cg.PollingComponent)
 
 CONF_BINARY_SENSOR = "binary_sensor"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(PM1003PHComponent),
-        cv.Required(CONF_BINARY_SENSOR): cv.use_id(binary_sensor.BinarySensor),
-        cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-            icon=ICON_BLUR
-            accuracy_decimals=1,
-            state_class=STATE_CLASS_MEASUREMENT,  
-            device_class=DEVICE_CLASS_PM25,
-        ),
-    }
-).extend(cv.polling_component_schema("30s"))
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(PM1003PHComponent),
+            cv.Required(CONF_BINARY_SENSOR): cv.use_id(binary_sensor.BinarySensor),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_BLUR,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,  
+                device_class=DEVICE_CLASS_PM25,
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("30s"))
+)
 
 
 async def to_code(config):
