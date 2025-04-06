@@ -1,0 +1,28 @@
+# PlatformIO build files
+.pioenvs/
+.piolibdeps/
+build/
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# ESPHome configuration files
+*.yaml~
+*.json
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.swp
+*.swo
+*.tmp
+
+# Git metadata
+*.orig
+
