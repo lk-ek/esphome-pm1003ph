@@ -10,6 +10,8 @@ from esphome.const import (
     ICON_BLUR,
 )
 
+DEPENDENCIES = ["uart"]
+
 pm1003ph_ns = cg.esphome_ns.namespace("pm1003ph")
 PM1003PHComponent = pm1003ph_ns.class_("PM1003PHComponent", cg.PollingComponent)
 
@@ -21,7 +23,6 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PM1003PHComponent),
-            cv.Optional(CONF_BINARY_SENSOR): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_BLUR,
@@ -31,6 +32,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_USE_UART, default=False): cv.boolean,
+            cv.Optional(CONF_BINARY_SENSOR): cv.use_id(binary_sensor.BinarySensor),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -48,6 +50,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     
     if CONF_BINARY_SENSOR in config:
+        cg.add_define("USE_BINARY_SENSOR")  # This is the correct way to enable binary sensor
         binary_sensor_ = await cg.get_variable(config[CONF_BINARY_SENSOR])
         cg.add(var.set_binary_sensor(binary_sensor_))
 

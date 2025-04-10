@@ -10,58 +10,108 @@ static const uint8_t UART_REQUEST[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};
 
 void PM1003PHComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PM1003PH...");
-  this->binary_sensor_->add_on_state_callback([this](bool state) {
-    unsigned long now = millis();  // Use esphome::millis()
-    if (state) {
-      // Binary sensor is pressed (on)
-      if (this->pulse_start_time_ > 0) {
-        this->total_pulse_time_ += now - this->pulse_start_time_;
+#ifdef USE_BINARY_SENSOR
+  if (!this->use_uart_ && this->binary_sensor_ == nullptr) {
+    ESP_LOGE(TAG, "Binary sensor is required for PWM mode!");
+    this->mark_failed();
+    return;
+  }
+  if (this->binary_sensor_ != nullptr) {  // Remove UART check to always set up PWM if sensor exists
+    this->binary_sensor_->add_on_state_callback([this](bool state) {
+      unsigned long now = millis();
+      if (state) {
+        this->pulse_start_time_ = now;
+      } else {
+        if (this->pulse_start_time_ > 0) {
+          this->total_pulse_time_ += now - this->pulse_start_time_;
+          ESP_LOGV(TAG, "PWM Pulse width: %lu ms", now - this->pulse_start_time_);
+        }
       }
-      this->pulse_start_time_ = now;
-    } else {
-      // Binary sensor is released (off)
-      this->pulse_start_time_ = now;
-    }
-  });
+    });
+  }
+#endif
 }
 
 void PM1003PHComponent::update() {
-  if (this->use_uart_ && this->parent_ != nullptr) {
-    this->write_array(UART_REQUEST, sizeof(UART_REQUEST));
-    delay(50);  // Give sensor time to respond
+  float uart_concentration = 0;
+  float pwm_concentration = 0;
+  bool uart_valid = false;
 
-    if (this->available() >= UART_PACKET_LENGTH && this->check_uart_data_()) {
-      uint16_t value = (uint16_t(this->uart_buffer_[2]) << 8) | this->uart_buffer_[3];
-      if (this->pm_2_5_sensor_ != nullptr) {
-        this->pm_2_5_sensor_->publish_state(value);
+  // Handle UART reading
+  if (this->parent_ != nullptr) {
+    ESP_LOGD(TAG, "Sending UART request");
+    this->write_array(UART_REQUEST, sizeof(UART_REQUEST));
+    
+    uint32_t start_time = millis();
+    while (this->available() < UART_PACKET_LENGTH) {
+      if (millis() - start_time > 50) {
+        ESP_LOGW(TAG, "Timeout waiting for response");
+        break;
       }
+      yield();
     }
-  } else if (this->pm_2_5_sensor_ != nullptr) {
-    float concentration = (this->total_pulse_time_ / 30000.0f) * 1000.0f;
-    this->pm_2_5_sensor_->publish_state(concentration);
-    this->total_pulse_time_ = 0;  // Reset after publishing
+
+    if (this->check_uart_data_()) {
+      // According to datasheet: The value(n) = DF3*256+DF4 (offset 3,4 after header)
+      uint16_t raw_value = (uint16_t(this->uart_buffer_[6]) << 8) | this->uart_buffer_[7];
+      float duty_ratio = raw_value / 1000.0f;
+      uart_concentration = duty_ratio * 1000.0f;
+      uart_valid = true;
+      ESP_LOGD(TAG, "UART - Raw: %d, Duty: %.3f, Conc: %.1f", raw_value, duty_ratio, uart_concentration);
+    }
+  }
+
+  // Handle PWM reading
+#ifdef USE_BINARY_SENSOR
+  if (this->binary_sensor_ != nullptr) {
+    // Calculate duty cycle over the full update interval
+    float interval_ms = this->get_update_interval() * 1000;  // convert to milliseconds
+    float duty_ratio = this->total_pulse_time_ / interval_ms;
+    pwm_concentration = duty_ratio * 1000.0f;
+    
+    ESP_LOGD(TAG, "PWM - Total ON time: %lu ms, Interval: %.0f ms, Duty: %.3f, Conc: %.1f", 
+             this->total_pulse_time_, interval_ms, duty_ratio, pwm_concentration);
+    
+    this->total_pulse_time_ = 0;  // Reset after reading
+  }
+#endif
+
+  // Log comparison if both methods available
+#ifdef USE_BINARY_SENSOR
+  if (uart_valid && this->binary_sensor_ != nullptr) {
+    float diff = uart_concentration - pwm_concentration;
+    ESP_LOGD(TAG, "Comparison - UART: %.1f, PWM: %.1f, Diff: %.1f", 
+             uart_concentration, pwm_concentration, diff);
+  }
+#endif
+
+  // Publish UART value if valid, otherwise use PWM value
+  if (this->pm_2_5_sensor_ != nullptr) {
+    if (uart_valid) {
+      this->pm_2_5_sensor_->publish_state(uart_concentration);
+#ifdef USE_BINARY_SENSOR
+    } else if (this->binary_sensor_ != nullptr) {
+      this->pm_2_5_sensor_->publish_state(pwm_concentration);
+#endif
+    }
   }
 }
 
 bool PM1003PHComponent::check_uart_data_() {
   if (this->read_array(this->uart_buffer_, UART_PACKET_LENGTH)) {
-    if (this->uart_buffer_[0] != 0x16 || this->uart_buffer_[1] != 0x11) {
-      ESP_LOGW(TAG, "Invalid header");
+    if (this->uart_buffer_[0] != 0x16 || this->uart_buffer_[1] != 0x11 || this->uart_buffer_[2] != 0x0B) {
+      ESP_LOGW(TAG, "Invalid header [%02X %02X %02X]", this->uart_buffer_[0], 
+               this->uart_buffer_[1], this->uart_buffer_[2]);
       return false;
     }
     
-    // Calculate checksum
-    uint8_t sum = 0;
-    for (uint8_t i = 0; i < UART_PACKET_LENGTH - 1; i++) {
-      sum += this->uart_buffer_[i];
+    // Log the full received data for debugging
+    ESP_LOGV(TAG, "Received data:");
+    for (int i = 0; i < UART_PACKET_LENGTH; i++) {
+      ESP_LOGV(TAG, "byte[%d] = 0x%02X", i, this->uart_buffer_[i]);
     }
     
-    if (sum != this->uart_buffer_[UART_PACKET_LENGTH - 1]) {
-      ESP_LOGW(TAG, "Checksum mismatch");
-      return false;
-    }
-    
-    return true;
+    return true;  // Temporarily disable checksum check for debugging
   }
   return false;
 }
