@@ -14,12 +14,26 @@ Sensor: https://en.gassensor.com.cn/ParticulateMatterSensor/info_itemid_104.html
 Datasheet: https://agelectronica.lat/pdfs/textos/P/PM1003PH.PDF
 
 ## Caveats
+### Use voltage divider
 The sensor runs on 5V and the UART and PWM output levels are 4.5V. You need to
 use a voltage divider if you plan to connect your ESP. Sensor-to-ESP 1K Ohm and
 then from the 1K Ohm resistor another 2.2K Ohm to ground worked for me on both
 the PWM as on the sensors TX line, which must be connected to the ESPs RX. The
 ESPs TX can be directly connected to the sensors RX, it seems to accept the ESPs
 3.3V level as input.
+
+### PWM calculation is off
+The datasheet says: 
+```
+"PWM communication description：
+-Pulse width: 1ms~1000ms
+-Low level duty ratio: low pulse time T1+T2+T3+…+Tn/PWM cycle To(30s)(%)
+-The sensor will output PWM signal after powered on
+```
+However, calculating it this way seems to consistently give larger values than
+when using the data via the UART interface. It follows the same general curve,
+but exaggerates larger numbers. There might be a logic mistake on my side. UART
+data collection seems stable so far.
 
 ## Features
 - Measures PM2.5 concentration using a binary sensor for PWM signal input.
