@@ -20,16 +20,16 @@ void PM1003PHComponent::setup() {
     this->mark_failed();
     return;
   }
-  if (this->binary_sensor_ != nullptr) {  // Remove UART check to always set up PWM if sensor exists
+  if (this->binary_sensor_ != nullptr) {  // always setup PWM if sensor exists
     this->binary_sensor_->add_on_state_callback([this](bool state) {
       unsigned long now = millis();
       if (state) {
-        this->pulse_start_time_ = now;
-      } else {
         if (this->pulse_start_time_ > 0) {
           this->total_pulse_time_ += now - this->pulse_start_time_;
           ESP_LOGV(TAG, "PWM Pulse width: %lu ms", now - this->pulse_start_time_);
         }
+      } else {
+        this->pulse_start_time_ = now;
       }
     });
   }
@@ -57,12 +57,12 @@ void PM1003PHComponent::update() {
     }
 
     if (this->check_uart_data_()) {
-      // According to datasheet: The value(n) = DF3*256+DF4 (offset 3,4 after header)
-      uint16_t raw_value = (uint16_t(this->uart_buffer_[6]) << 8) | this->uart_buffer_[7];
-      float duty_ratio = raw_value / 1000.0f;
-      uart_concentration = duty_ratio * 1000.0f;
+      // Value is in bytes 5,6 (zero-based)
+      uint16_t raw_value = encode_uint16(this->uart_buffer_[5], this->uart_buffer_[6]);
+      ESP_LOGV(TAG, "Raw bytes: 0x%02X 0x%02X", this->uart_buffer_[5], this->uart_buffer_[6]);
+      uart_concentration = raw_value;  // Value is already in µg/m³
       uart_valid = true;
-      ESP_LOGD(TAG, "UART - Raw: %d, Duty: %.3f, Conc: %.1f", raw_value, duty_ratio, uart_concentration);
+      ESP_LOGD(TAG, "UART - Raw: %d, Concentration: %.1f µg/m³", raw_value, uart_concentration);
     }
   }
 #endif
@@ -71,11 +71,11 @@ void PM1003PHComponent::update() {
 #ifdef USE_BINARY_SENSOR
   if (this->binary_sensor_ != nullptr) {
     // Calculate duty cycle over the full update interval
-    float interval_ms = this->get_update_interval() * 1000;  // convert to milliseconds
+    float interval_ms = this->get_update_interval();  // convert to milliseconds
     float duty_ratio = this->total_pulse_time_ / interval_ms;
     pwm_concentration = duty_ratio * 1000.0f;
     
-    ESP_LOGD(TAG, "PWM - Total ON time: %lu ms, Interval: %.0f ms, Duty: %.3f, Conc: %.1f", 
+    ESP_LOGD(TAG, "PWM - Total OFF time: %lu ms, Interval: %.0f ms, Duty: %.3f, Conc: %.1f", 
              this->total_pulse_time_, interval_ms, duty_ratio, pwm_concentration);
     
     this->total_pulse_time_ = 0;  // Reset after reading

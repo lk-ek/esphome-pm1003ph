@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"  // Add for encode_uint16
 #include "esphome/components/sensor/sensor.h"
 
 #ifdef USE_UART
