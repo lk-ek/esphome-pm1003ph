@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"  // Add for encode_uint16
+#include "esphome/core/optional.h"  // Add for optional
 #include "esphome/components/sensor/sensor.h"
 
 #ifdef USE_UART
@@ -16,6 +17,14 @@ namespace esphome {
 namespace pm1003ph {
 
 static const uint8_t UART_PACKET_LENGTH = 20;
+static const uint32_t PWM_WINDOW_MS = 30000;  // 30 seconds for PWM measurement
+static const uint32_t HISTORY_WINDOW_MS = 70000;  // 70 seconds total history
+static const size_t MAX_PULSES = 1000;  // Maximum number of pulses to store
+
+struct PulseInfo {
+  uint32_t timestamp;
+  uint32_t duration;
+};
 
 class PM1003PHComponent : public PollingComponent
 #ifdef USE_UART
@@ -50,6 +59,10 @@ class PM1003PHComponent : public PollingComponent
   sensor::Sensor *pm_2_5_sensor_{nullptr};
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *binary_sensor_{nullptr};
+  std::vector<PulseInfo> pulse_history_;
+  uint32_t measurement_start_time_{0};
+  void cleanup_old_pulses_(uint32_t now);
+  optional<float> calculate_pwm_concentration_();  // Change return type
 #endif
 
   // Only include these variables when UART is enabled
