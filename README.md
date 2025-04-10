@@ -23,7 +23,19 @@ To use this component, either copy the `pm1003ph` directory into your ESPHome
 project's `custom_components` folder or use the following external_components
 configuration:
 
-## Configuration Example
+```yaml
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/lk-ek/esphome-pm1003ph
+      ref: main 
+
+
+
+```
+
+## Configuration Example (PWM Output)
 ```yaml
 
 external_components:
@@ -43,3 +55,27 @@ sensor:
     binary_sensor: pm1003ph_pwm_signal
     pm_2_5:
       name: "PM1003PH PM2.5"
+```
+
+## Configuration Example (UART Output)
+```yaml
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/lk-ek/esphome-pm1003ph
+      ref: main 
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO43
+  rx_pin: GPIO44
+  baud_rate: 9600
+
+sensor:
+  - platform: pm1003ph
+    use_uart: true
+    uart_id: uart_bus
+    pm_2_5:
+      name: "PM1003PH PM2.5"
+```
