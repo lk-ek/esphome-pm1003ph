@@ -11,7 +11,11 @@ static const uint8_t UART_REQUEST[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};
 void PM1003PHComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PM1003PH...");
 #ifdef USE_BINARY_SENSOR
+#ifdef USE_UART
   if (!this->use_uart_ && this->binary_sensor_ == nullptr) {
+#else
+  if (this->binary_sensor_ == nullptr) {
+#endif
     ESP_LOGE(TAG, "Binary sensor is required for PWM mode!");
     this->mark_failed();
     return;
@@ -37,6 +41,7 @@ void PM1003PHComponent::update() {
   float pwm_concentration = 0;
   bool uart_valid = false;
 
+#ifdef USE_UART
   // Handle UART reading
   if (this->parent_ != nullptr) {
     ESP_LOGD(TAG, "Sending UART request");
@@ -60,6 +65,7 @@ void PM1003PHComponent::update() {
       ESP_LOGD(TAG, "UART - Raw: %d, Duty: %.3f, Conc: %.1f", raw_value, duty_ratio, uart_concentration);
     }
   }
+#endif
 
   // Handle PWM reading
 #ifdef USE_BINARY_SENSOR
@@ -85,18 +91,24 @@ void PM1003PHComponent::update() {
   }
 #endif
 
-  // Publish UART value if valid, otherwise use PWM value
+  // Publish value based on available method
   if (this->pm_2_5_sensor_ != nullptr) {
+#ifdef USE_UART
     if (uart_valid) {
       this->pm_2_5_sensor_->publish_state(uart_concentration);
-#ifdef USE_BINARY_SENSOR
-    } else if (this->binary_sensor_ != nullptr) {
-      this->pm_2_5_sensor_->publish_state(pwm_concentration);
-#endif
+      return;
     }
+#endif
+
+#ifdef USE_BINARY_SENSOR
+    if (this->binary_sensor_ != nullptr) {
+      this->pm_2_5_sensor_->publish_state(pwm_concentration);
+    }
+#endif
   }
 }
 
+#ifdef USE_UART
 bool PM1003PHComponent::check_uart_data_() {
   if (this->read_array(this->uart_buffer_, UART_PACKET_LENGTH)) {
     if (this->uart_buffer_[0] != 0x16 || this->uart_buffer_[1] != 0x11 || this->uart_buffer_[2] != 0x0B) {
@@ -115,6 +127,7 @@ bool PM1003PHComponent::check_uart_data_() {
   }
   return false;
 }
+#endif
 
 }  // namespace pm1003ph
 }  // namespace esphome

@@ -10,7 +10,7 @@ from esphome.const import (
     ICON_BLUR,
 )
 
-DEPENDENCIES = ["uart"]
+DEPENDENCIES = []
 
 pm1003ph_ns = cg.esphome_ns.namespace("pm1003ph")
 PM1003PHComponent = pm1003ph_ns.class_("PM1003PHComponent", cg.PollingComponent)
@@ -44,6 +44,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     
     if CONF_UART_ID in config:
+        cg.add_define("USE_UART")
         uart_component = await cg.get_variable(config[CONF_UART_ID])
         cg.add(var.set_uart_parent(uart_component))
     
@@ -58,5 +59,5 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_PM_2_5])
         cg.add(var.set_pm_2_5_sensor(sens))
     
-    if CONF_USE_UART in config:
+    if CONF_USE_UART in config and CONF_UART_ID in config:
         cg.add(var.set_use_uart(config[CONF_USE_UART]))
